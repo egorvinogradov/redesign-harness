@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f9f6">
+  <title>Redesign Harness</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Redesign Harness"><span class="brand-mark">r<span>·</span></span><span>Redesign Harness<small>Review at your own pace</small></span></a>
+    <div class="workspace-label"><span id="project-name">Your project</span> <span class="label-dot">·</span> Your review space</div>
+    <button id="activity-open" class="status-button" title="See the director’s current work"><i id="status-dot"></i><span id="status">Connecting…</span><span id="remaining"></span><span aria-hidden="true">↗</span></button>
+    <button id="session-open" aria-expanded="false" aria-controls="session-controls">Work session <span aria-hidden="true">⌄</span></button>
+  </header>
+  <section id="session-controls" class="controlbar" hidden aria-label="Director work session">
+    <div class="control-intro"><strong>Your design director</strong><span>Set a window. Come back when you like.</span></div>
+    <label class="field-label">Designer<select id="engine" aria-label="Design tool"><option value="claude">Claude</option><option value="pen">Pen Dev</option></select></label>
+    <div class="duration"><label for="hours">Work for <strong id="hours-value">4 hours</strong></label><input id="hours" type="range" min="0.5" max="8" step="0.5" value="4"></div>
+    <button id="start" class="primary">Start session</button><button id="pause">Pause</button>
+    <button id="schedule-open" class="quiet">Daily hours <span id="schedule-indicator"></span></button>
+    <span class="control-note">Stops automatically.<br>Everything stays saved.</span>
+  </section>
+  <main>
+    <section class="heading">
+      <div><div class="eyebrow">DESIGN REVIEW</div><h1>Fresh eyes. Better design.</h1><p id="board-subtitle">Your designs, ready when you are.</p></div>
+      <div class="heading-right"><div class="review-count"><strong id="new-count">0</strong><span>unseen designs</span></div><button id="review-next" class="primary">Start reviewing <span aria-hidden="true">→</span></button></div>
+    </section>
+    <section class="board-toolbar">
+      <nav id="filters" aria-label="Review status"><button data-filter="new" class="active" aria-pressed="true">Unseen <span id="count-new"></span></button><button data-filter="seen" aria-pressed="false">Viewed <span id="count-seen"></span></button><button data-filter="reviewed" aria-pressed="false">Reviewed <span id="count-reviewed"></span></button><button data-filter="all" aria-pressed="false">All designs <span id="count-all"></span></button></nav>
+      <div class="board-options"><select id="style-filter" aria-label="Design style"><option value="all">All styles</option></select><button id="select-mode" aria-pressed="false">Select designs</button><div class="zoom-control"><label for="card-size" class="sr-only">Board zoom</label><input id="card-size" type="range" min="25" max="150" step="25" value="100"><strong id="board-zoom">100%</strong><button id="board-actual" title="Actual size: one image pixel per screen pixel">Actual size</button><button id="board-fit" title="Show smaller previews">Overview</button></div></div>
+    </section>
+    <div id="selection-bar" hidden><strong id="selected-count"></strong><button id="compare">Compare</button><button id="group-comment" class="primary">Comment on group</button><span>Drag to select · Shift-click to add</span><button id="clear-selection" class="quiet">Clear selection</button></div>
+    <section id="gallery" aria-label="Design screenshots"></section>
+    <div id="empty" hidden><span class="empty-icon" aria-hidden="true">✓</span><h2>You’re all caught up.</h2><p>The director keeps working during your session.<br>New designs will appear here.</p><button id="show-all">Browse all designs</button></div>
+    <footer><span id="display-note">Actual-size previews · Design target: 1920 × 1080</span><span id="board-status"></span></footer>
+  </main>
+
+  <dialog id="viewer" aria-labelledby="viewer-title">
+    <header class="viewer-header"><div class="viewer-heading"><span id="viewer-meta" class="eyebrow"></span><h2 id="viewer-title"></h2></div><div class="viewer-actions"><span id="viewer-position"></span><button id="previous" aria-label="Previous screenshot" title="Previous · left arrow">←</button><button id="next" aria-label="Next screenshot" title="Next · right arrow">→</button><span class="divider"></span><button id="viewer-close" class="icon-button quiet" aria-label="Close review">✕</button></div></header>
+    <div class="viewer-body">
+      <div class="image-column">
+        <div class="canvas-toolbar"><div class="tool-group"><span class="draw-label">✎ Draw on the design</span><span id="drawing-hint">Circle anything, then add a note.</span><button id="clear-mark" hidden>Clear mark</button></div><div class="tool-group"><button id="zoom-out" class="icon-button" aria-label="Zoom out">−</button><span id="viewer-zoom">100%</span><button id="zoom-in" class="icon-button" aria-label="Zoom in">+</button><span class="divider"></span><button id="actual" class="active">Actual size</button><button id="fit">Fit</button></div></div>
+        <div id="image-scroll" tabindex="0" aria-label="Design canvas. Scroll to explore at actual size."><div id="image-stage"><img id="full-image" alt="Design preview" draggable="false"><svg id="annotations" aria-label="Screenshot annotations"></svg></div></div>
+        <div class="canvas-footer"><div id="sequence" hidden><button id="play">▶ Play</button><input id="step" type="range" min="0" max="0" value="0" aria-label="Interaction step"><span id="step-caption"></span></div><p id="viewer-caption"></p></div>
+      </div>
+      <aside class="feedback-panel" aria-label="Design feedback">
+        <div class="feedback-compose">
+          <div class="panel-title"><h3>Your take</h3></div>
+          <p class="panel-intro">A reaction is enough. A note goes further.</p>
+          <div id="viewer-reactions" class="reaction-row"></div>
+          <p id="recommendation"></p>
+          <div class="comment-heading"><label for="comment">What would you change?</label><span id="draft-status"></span></div>
+          <textarea id="comment" placeholder="I like this, but…" rows="5"></textarea>
+          <div id="region-note" hidden><span>◯ Feedback on selected area</span><button id="clear-region" class="quiet">Clear</button></div>
+          <label class="scope-label" for="scope">Apply this feedback to<select id="scope"><option value="interpret">Let the director decide</option><option value="screen">This screen only</option><option value="component">This component everywhere</option><option value="style">This style everywhere</option></select></label>
+          <button id="send-comment" class="primary" disabled>Send feedback <span aria-hidden="true">↗</span></button>
+          <button id="mark-reviewed" class="quiet">Mark reviewed &amp; next →</button>
+        </div>
+        <div class="feedback-history"><h4>Conversation <span id="feedback-count"></span></h4><div id="comment-list"></div></div>
+      </aside>
+    </div>
+  </dialog>
+
+  <dialog id="group-dialog" aria-labelledby="group-title">
+    <header class="viewer-header"><div><span class="eyebrow">SIDE BY SIDE</span><h2 id="group-title">Compare designs</h2></div><div class="viewer-actions"><label>Zoom <input id="compare-zoom" type="range" min="25" max="150" step="25" value="100"><span id="compare-percent">100%</span></label><button id="compare-actual">Actual size</button><button id="group-close" class="icon-button quiet" aria-label="Close comparison">✕</button></div></header>
+    <div id="compare-grid"></div>
+    <div class="group-feedback"><div class="group-compose"><label for="group-text">One note for these designs</label><textarea id="group-text" placeholder="What should change across this group?" rows="3"></textarea></div><div class="group-controls"><label for="group-scope">Apply feedback to</label><select id="group-scope"><option value="interpret">Let the director decide</option><option value="group">Selected designs only</option><option value="style">Their styles everywhere</option><option value="component">Their components everywhere</option></select><button id="group-send" class="primary" disabled>Send group feedback ↗</button></div></div>
+  </dialog>
+
+  <dialog id="schedule-dialog" class="small-dialog" aria-labelledby="schedule-title"><div class="dialog-heading"><span class="eyebrow">WORK SCHEDULE</span><h2 id="schedule-title">A little time, every day.</h2><p><span id="schedule-timezone">Local time</span> · Runs while your computer is awake.</p></div><label class="toggle"><input id="schedule-enabled" type="checkbox"> Repeat on these days</label><div id="weekdays"></div><div class="time-row"><label>From <input id="schedule-start" type="time" value="09:00"></label><label>Until <input id="schedule-end" type="time" value="13:00"></label></div><label class="field-label">Repeat through <input id="schedule-through" type="date"></label><p class="muted">Up to 8 hours a day. Choose an end date within 30 days.</p><div class="dialog-actions"><button id="schedule-close">Cancel</button><button id="schedule-save" class="primary">Save schedule</button></div></dialog>
+  <dialog id="activity-dialog" class="small-dialog" aria-labelledby="activity-title"><header class="viewer-header"><div><span class="eyebrow">BEHIND THE DESIGNS</span><h2 id="activity-title">Director’s desk</h2></div><button id="activity-close" class="icon-button quiet" aria-label="Close activity">✕</button></header><div id="activity-content"></div></dialog>
+  <div id="toast" role="status" hidden></div><div id="marquee" hidden></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
