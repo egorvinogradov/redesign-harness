@@ -17,7 +17,7 @@ Read the configured project's instructions before research or design. Project so
 is read-only unless the stakeholder separately authorizes implementation.
 
 Use the local review board for screenshots, reactions, group comments,
-and freehand area notes. Default image scale is always 100%: one exported pixel per CSS pixel.
+and freehand area notes. Default image scale is always 100%: one design pixel per CSS pixel. Use native 1×/2× exports matched to display density.
 Never automatically fit an image. Only explicit viewer controls change its scale.
 
 `init` configures a project. `seed` adds generic starter briefs. `add-job` adds a
@@ -28,6 +28,9 @@ retaining checkpoints. Daily schedules expire and do not catch up after sleep.
 Claude Code is the default designer. Pen Dev uses a Codex worker with a configured
 Pen MCP canvas; it is not Pen's built-in chat. Never alter conversation databases.
 Each job has its own session and files under the private workspace's `runs/` folder.
+
+Render each frame at native 1× and 2× from the same editable source. Never upscale
+a bitmap for Retina. Retain source provenance and identical logical dimensions.
 
 Keep secrets, project paths, screenshots, transcripts, evidence, and reference designs
 outside this public repository. Use synthetic sample data in design exports. Never

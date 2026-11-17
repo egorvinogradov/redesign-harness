@@ -14,6 +14,7 @@ source into it. Follow the target project's own rules for reading and browser ac
 For coding, use the existing Python standard-library server and static frontend.
 Run `python3 -m unittest discover -s scripts -p 'test_*.py'` and
 `node --check assets/app.js` after changes. Verify visual changes in a real browser.
-Preserve default 100% image scale, durable feedback, scoped annotations, and work limits.
+Preserve default 100% logical image scale, native 1×/2× display switching in both directions,
+durable feedback, scoped annotations, and work limits. Never upscale a bitmap as a Retina export.
 Never test feedback or worker controls against someone's real workspace: use a separate
 `--home` and `--port`, with `--no-worker` for UI tests.

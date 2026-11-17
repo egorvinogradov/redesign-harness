@@ -112,6 +112,58 @@ class Store:
         return self.put('jobs', {'id': uid(), 'title': title, 'brief': brief, 'kind': kind, 'key': key,
                                 'priority': priority, 'status': 'queued', 'attempts': 0, 'created': time.time()})
 
+    def _png(self, image, copy=False):
+        path = Path(image).resolve()
+        if not path.is_relative_to(self.home) or not path.is_file():
+            raise ValueError('Image must be a local export inside the director data directory')
+        raw = path.read_bytes()
+        if raw[:8] != b'\x89PNG\r\n\x1a\n' or len(raw) < 24:
+            raise ValueError('Export a PNG image')
+        width, height = struct.unpack('>II', raw[16:24])
+        if not width or not height:
+            raise ValueError('Empty image')
+        filename = hashlib.sha256(raw).hexdigest() + '.png'
+        if copy:
+            destination = self.home / 'assets' / filename
+            if path != destination:
+                shutil.copyfile(path, destination)
+        return filename, [width, height]
+
+    def _density_fields(self, artifact, image2x=None, steps2x=None, sources=None):
+        step_images = artifact['steps']
+        step_dimensions = [self._png(self.home / 'assets' / image)[1] for image in step_images]
+        dimensions = [artifact['dimensions'], *step_dimensions]
+        if steps2x is not None and (not isinstance(steps2x, list) or len(steps2x) != len(step_images)):
+            raise ValueError('steps2x must align with the standard-resolution steps')
+        if sources is not None and (not isinstance(sources, list) or len(sources) != len(dimensions)
+                                    or any(source is not None and not isinstance(source, dict) for source in sources)):
+            raise ValueError('sources must contain one provenance object or null per frame')
+        retina = [image2x, *(steps2x if steps2x is not None else [None] * len(step_images))]
+        stored = [artifact.get('image2x'), *artifact.get('steps2x', [None] * len(step_images))]
+        for index, image in enumerate(retina):
+            if image is None:
+                continue
+            filename, pixels = self._png(image, copy=True)
+            if pixels != [dimension * 2 for dimension in dimensions[index]]:
+                raise ValueError('Retina export must be exactly twice the standard frame dimensions')
+            stored[index] = filename
+        patch = {'image2x': stored[0], 'steps2x': stored[1:], 'stepDimensions': step_dimensions}
+        if sources is not None:
+            patch['sources'] = sources
+        return patch
+
+    def attach_density(self, artifact_id, image2x=None, steps2x=None, sources=None):
+        """Attach native density exports without replacing reviews, IDs, or original PNGs."""
+        with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT data FROM artifacts WHERE id=?', (artifact_id,)).fetchone()
+            if not row:
+                raise ValueError('Screenshot not found')
+            artifact = json.loads(row[0])
+            artifact.update(self._density_fields(artifact, image2x, steps2x, sources))
+            db.execute('UPDATE artifacts SET data=? WHERE id=?', (json.dumps(artifact), artifact_id))
+        return artifact
+
     def import_artifact(self, data, job_id=None):
         required = ['title', 'style', 'page', 'component', 'node', 'image', 'caption']
         if any(not isinstance(data.get(k), str) or not data[k] for k in required):
@@ -121,33 +173,19 @@ class Store:
         images = [data['image']] + data.get('steps', [])
         if len(images) > 7:
             raise ValueError('Use at most six interaction steps')
-        files = []
-        dimensions = []
-        for image in images:
-            path = Path(image).resolve()
-            if not path.is_relative_to(self.home) or not path.is_file():
-                raise ValueError('Image must be a local export inside the director data directory')
-            raw = path.read_bytes()
-            if raw[:8] != b'\x89PNG\r\n\x1a\n' or len(raw) < 24:
-                raise ValueError('Export a PNG image')
-            width, height = struct.unpack('>II', raw[16:24])
-            if not width or not height:
-                raise ValueError('Empty image')
-            filename = hashlib.sha256(raw).hexdigest() + '.png'
-            destination = self.home / 'assets' / filename
-            if path != destination:
-                shutil.copyfile(path, destination)
-            files.append(filename)
-            dimensions.append([width, height])
+        exported = [self._png(image, copy=True) for image in images]
+        files = [image[0] for image in exported]
+        dimensions = [image[1] for image in exported]
         if data.get('fullPage') and dimensions[0] != self.settings().get('targetSize', [1920, 1080]):
             raise ValueError('Full screen export must match the configured targetSize')
-        existing = next((a for a in self.all('artifacts') if a['image'] == files[0] and a['node'] == data['node']), None)
+        existing = next((a for a in self.all('artifacts') if a['image'] == files[0] and a['node'] == data['node'] and a['steps'] == files[1:]), None)
         if existing:
-            return existing
+            return self.attach_density(existing['id'], data.get('image2x'), data.get('steps2x'), data.get('sources'))
         artifact = {k: data.get(k) for k in ['title', 'style', 'page', 'component', 'node', 'caption', 'engine',
                                            'parent', 'recommendation', 'fullPage', 'stepCaptions']}
         artifact.update(id=uid(), created=time.time(), job=job_id, image=files[0], steps=files[1:],
                         dimensions=dimensions[0], viewed=False, reviewed=False, reaction=None, decision=None)
+        artifact.update(self._density_fields(artifact, data.get('image2x'), data.get('steps2x'), data.get('sources')))
         self.put('artifacts', artifact)
         return artifact
 

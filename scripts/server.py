@@ -5,6 +5,7 @@ import fcntl
 import json
 import mimetypes
 import os
+import re
 import secrets
 import signal
 import threading
@@ -21,11 +22,13 @@ def make_handler(store, token):
         def log_message(self, *args):
             pass
 
-        def send(self, status, payload, mime='application/json'):
+        def send(self, status, payload, mime='application/json', filename=None):
             body = json.dumps(payload).encode() if mime == 'application/json' else payload
             self.send_response(status)
             self.send_header('Content-Type', mime)
             self.send_header('Content-Length', str(len(body)))
+            if filename:
+                self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
             self.send_header('Cache-Control', 'no-store')
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Referrer-Policy', 'no-referrer')
@@ -46,13 +49,33 @@ def make_handler(store, token):
                 return self.send(200, {'token': token})
             if path == '/health':
                 return self.send(200, {'ok': True, 'service': 'design-director'})
+            if path.startswith('/download/'):
+                parts = path.split('/')
+                try:
+                    if len(parts) != 5:
+                        raise ValueError('Invalid download')
+                    artifact_id, step, scale = parts[2], int(parts[3]), int(parts[4])
+                    artifact = next(item for item in store.all('artifacts') if item['id'] == artifact_id)
+                    if not 0 <= step <= len(artifact['steps']) or scale not in (1, 2):
+                        raise ValueError('Invalid frame or density')
+                    images = [artifact.get('image2x'), *artifact.get('steps2x', [])] if scale == 2 else [artifact['image'], *artifact['steps']]
+                    image = images[step] if step < len(images) else None
+                    if not image:
+                        raise ValueError('This density has not been rendered yet')
+                    file = store.home / 'assets' / image
+                    _, dimensions = store._png(file)
+                    title = re.sub(r'[^a-z0-9]+', '-', artifact['title'].lower()).strip('-')[:80] or 'design'
+                    filename = f'{title}-frame-{step}-{dimensions[0]}x{dimensions[1]}@{scale}x.png'
+                    return self.send(200, file.read_bytes(), 'image/png', filename)
+                except (ValueError, StopIteration, OSError):
+                    return self.send(404, {'error': 'Export not available'})
             if path.startswith('/assets/'):
                 filename = path.removeprefix('/assets/')
                 if '/' in filename or not filename.endswith('.png'):
                     return self.send(404, {'error': 'Missing image'})
                 file = store.home / 'assets' / filename
             else:
-                file = SKILL / 'assets' / {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css'}.get(path, 'missing')
+                file = SKILL / 'assets' / {'/': 'index.html', '/app.js': 'app.js', '/density.js': 'density.js', '/style.css': 'style.css'}.get(path, 'missing')
             if not file.is_file():
                 return self.send(404, {'error': 'Not found'})
             self.send(200, file.read_bytes(), mimetypes.guess_type(file.name)[0] or 'application/octet-stream')

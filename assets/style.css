@@ -215,3 +215,11 @@ body:has(dialog[open]) #toast { top: 26px; bottom: auto; }
 .comment-item details small { white-space: pre-wrap; }
 #annotations [data-draft] { cursor: pointer; }
 #annotations [data-draft]:hover { stroke-width: 5; }
+
+.export-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 11px; color: #7c8979; }
+.export-label { margin-left: auto; }
+.export-row a { padding: 6px 10px; color: #355e40; background: #fff; border: 1px solid var(--border); border-radius: 6px; text-decoration: none; }
+.export-row a:hover { background: #edf4e9; border-color: #adc3a5; }
+.export-row a:focus-visible { outline: 3px solid #86ad93; outline-offset: 2px; }
+#retina-pending { color: #90998a; }
+@media (max-width: 700px) { .export-label { margin-left: 0; } #image-density { flex-basis: 100%; } }

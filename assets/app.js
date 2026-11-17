@@ -1,3 +1,4 @@
+import {frameAt, applyImageDensity, watchDisplayDensity} from './density.js';
 const $ = (id) => document.getElementById(id);
 const reactions = [[-2, '😖', 'Horrible'], [-1, '👎', 'Dislike'], [0, '🤔', 'Good start'], [1, '👍', 'Good'], [2, '🤩', 'Awesome']];
 let state, token, filter = 'new', styleFilter = 'all', selecting = false;
@@ -9,6 +10,43 @@ const drafts = JSON.parse(sessionStorage.getItem('design-director-drafts') || '{
 const escape = (text) => String(text ?? '').replace(/[&<>"']/g, (char) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
 const artifact = () => state.artifacts.find((item) => item.id === currentId);
 const time = (epoch) => new Date(epoch * 1000).toLocaleTimeString('en-GB', {timeZone: state?.settings.timezone || 'UTC', hour: '2-digit', minute: '2-digit', timeZoneName: 'short'});
+
+function imageAttributes(item, step = 0) {
+  const frame = frameAt(item, step);
+  const dimensions = frame.dimensions || [];
+  return `data-image-standard="${escape(frame.standard)}" data-image-retina="${escape(frame.retina || '')}" data-logical-width="${dimensions[0] || ''}" data-logical-height="${dimensions[1] || ''}" ${dimensions.length ? `width="${dimensions[0]}" height="${dimensions[1]}"` : ''}`;
+}
+
+function prepareImage(image, item, step = 0) {
+  const frame = frameAt(item, step);
+  image.dataset.imageStandard = frame.standard;
+  image.dataset.imageRetina = frame.retina || '';
+  image.dataset.logicalWidth = frame.dimensions?.[0] || '';
+  image.dataset.logicalHeight = frame.dimensions?.[1] || '';
+  applyImageDensity(image, window.devicePixelRatio || 1);
+}
+
+function updateImagesForDisplay(ratio = window.devicePixelRatio || 1) {
+  document.querySelectorAll('img[data-image-standard]').forEach((image) => applyImageDensity(image, ratio));
+  if ($('viewer').open && artifact()) updateDownloads();
+}
+
+function updateDownloads() {
+  const item = artifact();
+  if (!item) return;
+  const frame = frameAt(item, currentStep);
+  const dimensions = frame.dimensions || [];
+  for (const scale of [1, 2]) {
+    const link = $('download-' + scale);
+    const available = scale === 1 || !!frame.retina;
+    link.hidden = !available;
+    link.href = `/download/${item.id}/${currentStep}/${scale}`;
+    link.textContent = `${scale === 1 ? 'Standard 1×' : 'Retina 2×'}${dimensions.length ? ' · ' + dimensions.map((size) => size * scale).join(' × ') : ''}`;
+  }
+  const retinaPreview = (window.devicePixelRatio || 1) > 1 && frame.retina;
+  $('image-density').textContent = retinaPreview ? 'Retina preview · 2× detail, actual size' : 'Standard preview · 1×';
+  $('retina-pending').hidden = !!frame.retina;
+}
 
 function toast(message) {
   (document.querySelector('dialog[open]') || document.body).append($('toast'));
@@ -45,8 +83,9 @@ function renderBoard(force = false) {
   const items = visibleArtifacts();
   $('gallery').innerHTML = items.map((item) => `<article class="card ${selected.has(item.id) ? 'selected' : ''}" data-id="${item.id}" style="width:calc(${item.dimensions[0]}px * var(--zoom) + 2px)">
     <div class="card-top">${selecting ? `<input type="checkbox" class="select-box" aria-label="Select ${escape(item.title)}" ${selected.has(item.id) ? 'checked' : ''}>` : ''}<span class="card-title">${escape(item.title)}</span><span class="badge ${item.decision || (!item.viewed ? 'new' : '')}">${escape(item.decision || (!item.viewed ? 'NEW' : item.reviewed ? 'REVIEWED' : 'SEEN'))}</span><span class="card-time">${item.steps.length ? '▶ ' + item.steps.length + ' steps' : escape(item.dimensions.join(' × '))}</span></div>
-    <div class="thumb-scroll"><button class="thumb" style="width:calc(${item.dimensions[0]}px * var(--zoom))" aria-label="Review ${escape(item.title)}"><img src="/assets/${item.image}" alt="${escape(item.title)}" loading="lazy" draggable="false"></button></div>
+    <div class="thumb-scroll"><button class="thumb" style="width:calc(${item.dimensions[0]}px * var(--zoom))" aria-label="Review ${escape(item.title)}"><img ${imageAttributes(item)} alt="${escape(item.title)}" loading="lazy" draggable="false"></button></div>
     <div class="card-bottom"><div><p class="card-caption">${escape(item.caption)}</p><p class="card-style">${escape(styleName(item.style))} · ${escape(styleName(item.component))}</p></div><div class="reaction-row">${reactionButtons(item)}</div></div></article>`).join('');
+  updateImagesForDisplay();
   $('empty').hidden = !!items.length;
   const newCount = state.artifacts.filter((item) => !item.viewed).length;
   $('new-count').textContent = newCount;
@@ -87,7 +126,13 @@ async function refresh() {
     state = await api('state');
     renderBoard();
     renderStatus();
-    if ($('viewer').open) renderFeedback();
+    if ($('viewer').open) { prepareImage($('full-image'), artifact(), currentStep); updateDownloads(); renderFeedback(); }
+    if ($('group-dialog').open) {
+      $('compare-grid').querySelectorAll('img[data-artifact]').forEach((image) => {
+        const item = state.artifacts.find((entry) => entry.id === image.dataset.artifact);
+        if (item) prepareImage(image, item);
+      });
+    }
     if ($('activity-dialog').open) renderActivity();
   } finally { refreshing = false; }
 }
@@ -108,7 +153,9 @@ function fitImage() {
   if (!item) return;
   const image = $('full-image');
   const area = $('image-scroll');
-  const width = image.naturalWidth || item.dimensions[0], height = image.naturalHeight || item.dimensions[1];
+  const density = Number(image.dataset.renderDensity || 1);
+  const width = Number(image.dataset.logicalWidth) || image.naturalWidth / density || item.dimensions[0];
+  const height = Number(image.dataset.logicalHeight) || image.naturalHeight / density || item.dimensions[1];
   const padding = getComputedStyle(area);
   const availableWidth = area.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight);
   const availableHeight = area.clientHeight - parseFloat(padding.paddingTop) - parseFloat(padding.paddingBottom);
@@ -192,7 +239,8 @@ function drawRegions() {
 function setStep(step) {
   currentStep = Number(step);
   $('step').value = currentStep;
-  $('full-image').src = '/assets/' + [artifact().image, ...artifact().steps][currentStep];
+  prepareImage($('full-image'), artifact(), currentStep);
+  updateDownloads();
   $('step-caption').textContent = currentStep ? artifact().stepCaptions?.[currentStep - 1] || `Step ${currentStep}` : 'Overview';
   region = null;
   updateDrawingTools();
@@ -206,9 +254,10 @@ function openGroup() {
   if (!selected.size) return;
   const items = state.artifacts.filter((item) => selected.has(item.id));
   $('group-title').textContent = `${items.length} designs · one conversation`;
-  $('compare-grid').innerHTML = items.map((item) => `<figure style="width:calc(${item.dimensions[0]}px * var(--compare-scale, 1))"><figcaption>${escape(item.title)} · ${escape(item.style)}</figcaption><img src="/assets/${item.image}" alt="${escape(item.title)}"></figure>`).join('');
+  $('compare-grid').innerHTML = items.map((item) => `<figure style="width:calc(${item.dimensions[0]}px * var(--compare-scale, 1))"><figcaption>${escape(item.title)} · ${escape(item.style)}</figcaption><img ${imageAttributes(item)} data-artifact="${item.id}" alt="${escape(item.title)}"></figure>`).join('');
   $('compare-grid').style.setProperty('--compare-scale', 1);
   $('compare-zoom').value = 100; $('compare-percent').textContent = '100%';
+  updateImagesForDisplay();
   $('group-dialog').showModal();
 }
 
@@ -396,5 +445,6 @@ $('activity-close').onclick = () => $('activity-dialog').close();
 $('activity-content').onclick = (event) => { const button = event.target.closest('[data-retry]'); if (button) action(async () => { await api('control', {action: 'retry', id: button.dataset.retry}); await refresh(); }); };
 window.addEventListener('resize', () => { if ($('viewer').open) fitImage(); });
 document.addEventListener('keydown', (event) => { if (!$('viewer').open || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return; if ((event.key === 'Delete' || event.key === 'Backspace') && region) { event.preventDefault(); clearMark(); return; } if (event.key === 'ArrowRight') navigate(1); if (event.key === 'ArrowLeft') navigate(-1); });
+watchDisplayDensity(updateImagesForDisplay);
 await action(async () => { token = (await api('session')).token; await refresh(); });
 setInterval(() => action(refresh), 4000);

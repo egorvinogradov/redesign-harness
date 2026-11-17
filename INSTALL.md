@@ -24,9 +24,10 @@ private paths and data out of public logs and commits.
 ## 2. Configure a private workspace
 
 On macOS the default is `~/Library/Application Support/Redesign Harness/`.
-For additional projects, choose another private `--home` and a free port. The login
-service manages one workspace at a time; do not replace a different project's service
-without the user's direction. For another project, use a separate foreground server.
+For additional projects, choose another private `--home`, a free port, and a unique
+`--service` name. For example, `install --service project-two --port 4318` creates
+`app.redesign-harness.project-two` alongside the default service. Do not replace a
+different project's service. Named services keep workspaces and queues independent.
 
 Write a private `project-brief.md` inside the workspace, covering:
 
@@ -69,7 +70,8 @@ On macOS:
 python3 scripts/director.py --home "$PRIVATE_WORKSPACE" install --port 4317
 ```
 
-This creates `~/Library/LaunchAgents/app.redesign-harness.plist`. It restarts on login,
+This creates `~/Library/LaunchAgents/app.redesign-harness.plist`. For another project,
+add `--service project-two --port 4318` and use its private `--home`. It restarts on login,
 but does not keep the computer awake. It does not grant work time.
 
 For a foreground server or another OS:

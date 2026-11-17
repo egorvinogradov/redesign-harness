@@ -31,7 +31,7 @@ repository find the same instructions in [AGENTS.md](AGENTS.md).
 
 ## Review at your own pace
 
-- Screenshots open at **100%**: one image pixel per browser CSS pixel.
+- Screenshots open at **100%**: one design pixel per browser CSS pixel, with native detail matched to the display.
 - One feedback scale: five reactions, plus optional short comments.
 - Draw directly on screenshots, delete unsent marks, group selection, and side-by-side comparison.
 - Style and component feedback carries into later revisions.
@@ -106,8 +106,10 @@ python3 scripts/director.py pause
 Default state: `~/Library/Application Support/Redesign Harness/`. Use
 `REDESIGN_HARNESS_HOME` or `--home /absolute/private/workspace` to choose another.
 A workspace represents one project. Run another server with a separate `--home` and
-`--port` for another project. The macOS installer manages one login service; installing
-again replaces that service's workspace and port.
+`--port` for another project. The default macOS login service belongs to one workspace. For another project, use
+`install --service project-two --port 4318` with that project's `--home`. Named services
+run independently and refuse to overwrite a service belonging to another workspace.
+Use the matching `uninstall --service project-two` to remove it.
 
 The private workspace contains:
 
@@ -144,7 +146,7 @@ schedules expire within 30 days and never catch up missed hours.
 
 Workers submit the JSON result contract embedded in `scripts/supervisor.py`. You can
 also import an artifact manifest with `scripts/director.py import manifest.json`.
-PNG inputs must be inside the private workspace. A minimal manifest is:
+PNG inputs must be inside the private workspace. A paired manifest is:
 
 ```json
 {
@@ -154,13 +156,52 @@ PNG inputs must be inside the private workspace. A minimal manifest is:
   "component": "filters",
   "node": "filters-v1",
   "image": "/absolute/private/workspace/assets/filters.png",
+  "image2x": "/absolute/private/workspace/assets/filters@2x.png",
+  "sources": [{"kind": "html", "html": "/absolute/private/workspace/runs/example/filters.html", "viewport": [1920, 1080]}],
   "caption": "Change filters without losing context."
 }
 ```
 
-For locally owned HTML mockups, `scripts/render.py` uses a temporary headless Chrome
-profile at device scale 1. It accepts only HTML inside the workspace's `runs/` tree.
-It is not a tool for logged-in website research.
+## Standard and Retina exports
+
+Every frame has a logical size, such as 1920 × 1080. Its standard PNG is 1920 × 1080;
+its Retina PNG is 3840 × 2160. The board, viewer, storyboards and comparison keep the
+same logical layout and choose the correct native raster for the current display.
+Moving the window between displays switches both ways automatically, without reload
+or changing zoom. Annotation coordinates and unfinished notes stay in place.
+
+The viewer offers **Standard 1×** and **Retina 2×** downloads for the current frame,
+labelled with their actual pixel dimensions. Downloads are the original PNG bytes.
+Send the standard file to a regular-display recipient, or the Retina file when the
+recipient needs 2× detail. External image viewers choose their own zoom; the harness
+controls logical display size inside its own preview.
+
+Generate both densities directly from the same editable source:
+
+```sh
+python3 scripts/render.py /absolute/private/workspace/runs/example/screen.html \
+  /absolute/private/workspace/assets/screen.png \
+  --home /absolute/private/workspace --width 1920 --height 1080 --both
+```
+
+This creates `screen.png` and `screen@2x.png`. `--scale 1` or `--scale 2` renders a
+single density. `--clip X Y WIDTH HEIGHT` crops in logical CSS pixels while preserving
+the full source viewport. Viewports up to 5120 × 2160 are supported. The renderer uses
+an isolated headless Chrome profile and anonymous control pipes, waits for page/fonts,
+sets and verifies the exact CSS viewport and device scale, and captures native pixels.
+It accepts only owned HTML inside the workspace's `runs/` tree. It is not a tool for
+logged-in website research. No bitmap upscaling or downsampling is involved.
+
+`steps2x` aligns with `steps`, and `sources` aligns with `[image, ...steps]`. A provenance
+record can include an HTML path, `viewport`, and `clip`, or Pen document/node IDs.
+Old 1×-only artifacts still work; the UI explicitly shows when a Retina export is not
+available. Never substitute an upscaled bitmap and label it Retina.
+
+To backfill paired exports, call `Store.attach_density(artifact_id, image2x=...,
+steps2x=..., sources=...)` from a local maintenance script. It validates exact-double
+sizes and preserves artifact IDs, feedback, review state, and original 1× exports.
+Importing the same node and 1× frames again with density fields enriches the existing
+artifact instead of creating a duplicate.
 
 ## Development
 

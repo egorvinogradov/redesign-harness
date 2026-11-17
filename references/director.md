@@ -20,7 +20,9 @@ more variants of the same screen. Stop when the useful finite backlog is exhaust
 
 A reviewable direction preserves capabilities, works in dense states, has legible text,
 and has no clipped controls. Inspect rendered exports before submission. Keep editable
-source and reproduction instructions alongside each job. Reuse checkpoints on retries.
+source and reproduction instructions alongside each job. Render matching native 1×
+and 2× PNGs from that source, with the same CSS viewport and crop. Save provenance
+for every frame. Do not resize a bitmap to manufacture a Retina version. Reuse checkpoints on retries.
 
 Whole-screen decisions get a whole-screen export at the configured target dimensions.
 An isolated filter, menu, modal, or control gets a focused crop with enough context.
